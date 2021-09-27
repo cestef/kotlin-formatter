@@ -1,4 +1,6 @@
 import { exec } from "child_process";
+import * as path from "path";
+import * as fs from "fs";
 import * as vscode from "vscode";
 
 const run = (command: string, output: vscode.OutputChannel) =>
@@ -15,8 +17,22 @@ const run = (command: string, output: vscode.OutputChannel) =>
         });
     });
 
-const format = async (input: string, output: vscode.OutputChannel) => {
-    const command = `cat <<EOF |ktlint --stdin -F\n${input}\nEOF`;
+const findEditorConfig = (document: vscode.TextDocument): string | null => {
+    const documentPath = document.uri.path;
+    var testedFolder = path.dirname(documentPath);
+    do {
+        const editorConfigFile = fs.readdirSync(testedFolder).find(file => file === '.editorconfig');
+        if (editorConfigFile) {
+            return `${testedFolder}/${editorConfigFile}`;
+        }
+        testedFolder = path.dirname(testedFolder);
+    } while (testedFolder !== process.cwd());
+    return null;
+};
+
+const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
+    const editorConfigPath = findEditorConfig(document);
+    const command = `cat <<EOF |ktlint ${editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ''} --stdin -F\n${document.getText()}\nEOF`;
     return await run(command, output);
 };
 
@@ -31,7 +47,7 @@ export const activate = (context: vscode.ExtensionContext) => {
             ["kotlin", "kotlinscript"].includes(activeTextEditor.document.languageId)
         ) {
             const { document } = activeTextEditor;
-            const newFile = await format(document.getText(), output);
+            const newFile = await format(document, output);
             const edit = new vscode.WorkspaceEdit();
             edit.replace(
                 document.uri,
@@ -54,7 +70,7 @@ export const activate = (context: vscode.ExtensionContext) => {
         {
             provideDocumentFormattingEdits: async (document) => {
                 try {
-                    const newFile = await format(document.getText(), output);
+                    const newFile = await format(document, output);
                     const edit = vscode.TextEdit.replace(
                         new vscode.Range(
                             new vscode.Position(0, 0),
