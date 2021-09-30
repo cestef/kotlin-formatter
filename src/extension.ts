@@ -3,16 +3,16 @@ import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
 
-const run = (command: string, output: vscode.OutputChannel) =>
+const infoTag = '[INFO]:';
+const errorTag = '[ERROR]:';
+
+const run = (command: string) =>
     new Promise<string>((resolve, reject) => {
-        exec(command, (err, stdout, stderr) => {
+        exec(command, (err, stdout) => {
             if (err) {
-                output.appendLine(`${err}`);
-                output.appendLine(stderr);
                 reject(err.message);
             } else {
                 resolve(stdout);
-                output.appendLine(stdout);
             }
         });
     });
@@ -32,13 +32,23 @@ const findEditorConfig = (document: vscode.TextDocument): string | null => {
 
 const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
     const editorConfigPath = findEditorConfig(document);
+    editorConfigPath && output.appendLine(`${infoTag} Found editorconfig file at: ${editorConfigPath}`);
     const command = `cat <<EOF |ktlint ${editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ''} --stdin -F\n${document.getText()}\nEOF`;
-    return await run(command, output);
+    output.appendLine(`${infoTag} Formatting file: ${document.uri.path}`);
+    return await run(command);
+};
+
+const showError = (e: string, output: vscode.OutputChannel) => {
+    const errorLog = e;
+    const relevantInfo = errorLog.substring(errorLog.indexOf('<stdin>'));
+    vscode.window.showErrorMessage(`${errorTag} ${relevantInfo}`);
+    output.appendLine(`${errorTag} ${relevantInfo}`);
+    output.show(true);
 };
 
 export const activate = (context: vscode.ExtensionContext) => {
     const output = vscode.window.createOutputChannel("Kotlin Formatter");
-    output.appendLine("Enabled Kotlin-Formatter");
+    output.appendLine(`${infoTag} Enabled Kotlin-Formatter`);
     let command = vscode.commands.registerCommand("kotlin-formatter.formatKotlin", async () => {
         const { activeTextEditor } = vscode.window;
 
@@ -47,28 +57,32 @@ export const activate = (context: vscode.ExtensionContext) => {
             ["kotlin", "kotlinscript"].includes(activeTextEditor.document.languageId)
         ) {
             const { document } = activeTextEditor;
-            const newFile = await format(document, output);
-            const edit = new vscode.WorkspaceEdit();
-            edit.replace(
-                document.uri,
-                new vscode.Range(
-                    new vscode.Position(0, 0),
-                    new vscode.Position(
-                        document.lineCount - 1,
-                        document.lineAt(document.lineCount - 1).range.end.character
-                    )
-                ),
-                newFile
-            );
-
-            return vscode.workspace.applyEdit(edit);
+            try {
+                const newFile = await format(document, output);
+                const edit = new vscode.WorkspaceEdit();
+                edit.replace(
+                    document.uri,
+                    new vscode.Range(
+                        new vscode.Position(0, 0),
+                        new vscode.Position(
+                            document.lineCount - 1,
+                            document.lineAt(document.lineCount - 1).range.end.character
+                        )
+                    ),
+                    newFile
+                );
+                return vscode.workspace.applyEdit(edit);
+            } catch (e) {
+                showError(e as string, output);
+                return [];
+            }
         }
     });
 
     let formatter = vscode.languages.registerDocumentFormattingEditProvider(
         [{ language: "kotlin" }, { language: "kotlinscript" }],
         {
-            provideDocumentFormattingEdits: async (document) => {
+            provideDocumentFormattingEdits: async (document: vscode.TextDocument) => {
                 try {
                     const newFile = await format(document, output);
                     const edit = vscode.TextEdit.replace(
@@ -83,8 +97,7 @@ export const activate = (context: vscode.ExtensionContext) => {
                     );
                     return [edit];
                 } catch (e) {
-                    output.appendLine(e as string);
-                    vscode.window.showErrorMessage(`An Error occured when formatting: ${e}`);
+                    showError(e as string, output);
                     return [];
                 }
             },
