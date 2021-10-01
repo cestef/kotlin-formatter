@@ -3,8 +3,8 @@ import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
 
-const infoTag = '[INFO]:';
-const errorTag = '[ERROR]:';
+const infoTag = "[INFO]:";
+const errorTag = "[ERROR]:";
 
 const run = (command: string) =>
     new Promise<string>((resolve, reject) => {
@@ -18,29 +18,58 @@ const run = (command: string) =>
     });
 
 const findEditorConfig = (document: vscode.TextDocument): string | null => {
-    const documentPath = document.uri.path;
+    const documentPath = document.uri.fsPath;
     var testedFolder = path.dirname(documentPath);
-    do {
-        const editorConfigFile = fs.readdirSync(testedFolder).find(file => file === '.editorconfig');
-        if (editorConfigFile) {
-            return `${testedFolder}/${editorConfigFile}`;
-        }
-        testedFolder = path.dirname(testedFolder);
-    } while (testedFolder !== process.cwd());
+    const files = getFiles(testedFolder);
+    const editorConfig = files.find((e) => /\.editorconfig/.test(e));
+    if (editorConfig) return editorConfig;
+    // do {
+    //     const editorConfigFile = fs
+    //         .readdirSync(testedFolder)
+    //         .find((file) => file === ".editorconfig");
+    //     if (editorConfigFile) {
+    //         return `${testedFolder}/${editorConfigFile}`;
+    //     }
+    //     testedFolder = path.dirname(testedFolder);
+    //     console.log(testedFolder);
+    // } while (testedFolder !== process.cwd());
     return null;
+};
+
+const getFiles = (dir: string): string[] => {
+    const dirents = fs.readdirSync(dir, { withFileTypes: true });
+    const files = dirents.map((dirent) => {
+        const res = path.resolve(dir, dirent.name);
+        return dirent.isDirectory() ? getFiles(res) : res;
+    });
+    return Array.prototype.concat(...files);
 };
 
 const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
     const editorConfigPath = findEditorConfig(document);
-    editorConfigPath && output.appendLine(`${infoTag} Found editorconfig file at: ${editorConfigPath}`);
-    const command = `cat <<EOF |ktlint ${editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ''} --stdin -F\n${document.getText()}\nEOF`;
-    output.appendLine(`${infoTag} Formatting file: ${document.uri.path}`);
+    editorConfigPath &&
+        output.appendLine(`${infoTag} Found editorconfig file at: ${editorConfigPath}`);
+    const command =
+        process.platform === "win32"
+            ? `cd ${path.dirname(document.uri.fsPath)} & ( ${document
+                  .getText()
+                  .split(/\n|\r/)
+                  .filter(Boolean)
+                  .map((e) => `echo|set /p="${e}" & echo.`)
+                  .join(" & ")}) | java -jar .\\ktlint --stdin -F`
+            : `cat <<EOF |ktlint ${
+                  editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
+              } --stdin -F\n${document.getText()}\nEOF`;
+    console.log(command);
+    output.appendLine(`${infoTag} Formatting file: ${document.uri.fsPath}`);
     return await run(command);
 };
 
 const showError = (e: string, output: vscode.OutputChannel) => {
     const errorLog = e;
-    const relevantInfo = errorLog.substring(errorLog.indexOf('<stdin>'));
+    const relevantInfo = errorLog
+        ? errorLog.substring(errorLog?.indexOf("<stdin>"))
+        : "Unkown error";
     vscode.window.showErrorMessage(`${errorTag} ${relevantInfo}`);
     output.appendLine(`${errorTag} ${relevantInfo}`);
     output.show(true);
@@ -51,7 +80,6 @@ export const activate = (context: vscode.ExtensionContext) => {
     output.appendLine(`${infoTag} Enabled Kotlin-Formatter`);
     let command = vscode.commands.registerCommand("kotlin-formatter.formatKotlin", async () => {
         const { activeTextEditor } = vscode.window;
-
         if (
             activeTextEditor &&
             ["kotlin", "kotlinscript"].includes(activeTextEditor.document.languageId)
@@ -85,6 +113,7 @@ export const activate = (context: vscode.ExtensionContext) => {
             provideDocumentFormattingEdits: async (document: vscode.TextDocument) => {
                 try {
                     const newFile = await format(document, output);
+                    console.log(newFile);
                     const edit = vscode.TextEdit.replace(
                         new vscode.Range(
                             new vscode.Position(0, 0),
@@ -97,7 +126,7 @@ export const activate = (context: vscode.ExtensionContext) => {
                     );
                     return [edit];
                 } catch (e) {
-                    showError(e as string, output);
+                    showError((e as string).toString(), output);
                     return [];
                 }
             },
