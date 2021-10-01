@@ -1,6 +1,6 @@
 # Kotlin-Formatter for VSCode
 
-This is a Formatter to have for Kotlin (`.kt`) and KotlinScript (`.kts`)
+This is just a formatter for Kotlin (`.kt`) and KotlinScript (`.kts`)
 
 ## Requirements
 
