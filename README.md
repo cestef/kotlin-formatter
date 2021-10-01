@@ -6,7 +6,15 @@ This is just a formatter for Kotlin (`.kt`) and KotlinScript (`.kts`)
 
 Make sure you have [ktlint](https://github.com/pinterest/ktlint) installed before installing this extension
 
-This extension currently only supports `Linux` and `macOS`, I will add Windows support in a future release
+---
+
+**IMPORTANT NOTE FOR WINDOWS USERS**
+
+You need to have the [ktlint jar](https://github.com/pinterest/ktlint/releases) file in your project root for this to work. 
+
+---
+
+This extension supports `Linux`, `macOS` and `Windows`.
 
 ## Using
 
