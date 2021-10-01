@@ -56,7 +56,9 @@ const format = async (document: vscode.TextDocument, output: vscode.OutputChanne
                   .split(/\n|\r/)
                   .filter(Boolean)
                   .map((e) => `echo|set /p="${e}" & echo.`)
-                  .join(" & ")}) | java -jar .\\ktlint --stdin -F`
+                  .join(" & ")}) | java -jar .\\ktlint ${
+                  editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
+              } --stdin -F`
             : `cat <<EOF |ktlint ${
                   editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
               } --stdin -F\n${document.getText()}\nEOF`;
