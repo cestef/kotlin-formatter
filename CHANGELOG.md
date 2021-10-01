@@ -4,7 +4,7 @@ All notable changes to the "kotlin-formatter" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [0.0.4] - 2021-10-01
+## [0.0.5] - 2021-10-01
 
 ### Added
 - Windows support ! [@mik0git #1](https://github.com/cstefFlexin/kotlin-formatter/issues/1)
