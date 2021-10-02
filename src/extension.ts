@@ -47,6 +47,9 @@ const getFiles = (dir: string): string[] => {
 
 const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
     const editorConfigPath = findEditorConfig(document);
+    const ktlintPath = vscode.workspace
+        .getConfiguration("kotlin-formatter")
+        .get<string | null>("ktlintPath");
     editorConfigPath &&
         output.appendLine(`${infoTag} Found editorconfig file at: ${editorConfigPath}`);
     const command =
@@ -56,7 +59,7 @@ const format = async (document: vscode.TextDocument, output: vscode.OutputChanne
                   .split(/\n|\r/)
                   .filter(Boolean)
                   .map((e) => `echo|set /p="${e}" & echo.`)
-                  .join(" & ")}) | java -jar .\\ktlint ${
+                  .join(" & ")}) | java -jar ${ktlintPath || ".\\ktlint"} ${
                   editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
               } --stdin -F`
             : `cat <<EOF |ktlint ${

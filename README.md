@@ -4,17 +4,14 @@ This is just a formatter for Kotlin (`.kt`) and KotlinScript (`.kts`)
 
 ## Requirements
 
-Make sure you have [ktlint](https://github.com/pinterest/ktlint) installed before installing this extension
+### macOS / Linux
 
----
+Make sure you have [ktlint](https://github.com/pinterest/ktlint#installation) installed before installing this extension
 
-**IMPORTANT NOTE FOR WINDOWS USERS**
+### Windows
 
-You need to have the [ktlint jar](https://github.com/pinterest/ktlint/releases) file in your project root for this to work. 
+You need the [ktlint jar](https://github.com/pinterest/ktlint/releases) file and either have it in your project root or specify its location in the vscode settings (`ktlintPath`)
 
----
-
-This extension supports `Linux`, `macOS` and `Windows`.
 
 ## Using
 

@@ -22,6 +22,21 @@
                 "command": "kotlin-formatter.formatKotlin",
                 "title": "Format Kotlin"
             }
+        ],
+        "configuration": [
+            {
+                "title": "Kotlin Formatter",
+                "properties": {
+                    "kotlin-formatter.ktlintPath": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "default": null,
+                        "description": "Path to the ktlint JAR file"
+                    }
+                }
+            }
         ]
     },
     "icon": "icon/icon.jpg",
