@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import platformSelect from './platformSelect';
-import { run } from './cliHelpers';
-import { findEditorConfig, checkIfKTlintExist } from './configHelpers';
-import { showInfo, noKtlintError } from './outputHelpers';
+import platformSelect from './utils/platformSelect';
+import { run } from './utils/process';
+import { findEditorConfig, checkIfKTlintExist } from './utils/config';
+import { showInfo, noKtlintError } from './utils/output';
 
 const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
   const editorConfigPath = findEditorConfig(document);

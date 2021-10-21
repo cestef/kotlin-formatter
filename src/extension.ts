@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { format } from './formatter';
-import { showInfo, noKtlintError, showError } from './outputHelpers';
-import { checkIfKTlintExist } from './configHelpers';
+import { showInfo, noKtlintError, showError } from './utils/output';
+import { checkIfKTlintExist } from './utils/config';
 
 export const activate = async (context: vscode.ExtensionContext) => {
     const output = vscode.window.createOutputChannel("Kotlin Formatter");
