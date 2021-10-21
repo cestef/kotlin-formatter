@@ -2,9 +2,19 @@ import { exec } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
+import platformSelect from "./platformSelect";
 
 const infoTag = "[INFO]:";
 const errorTag = "[ERROR]:";
+
+const showError = (errorLog: string, output: vscode.OutputChannel) => {
+    const relevantInfo = errorLog
+        ? errorLog.substring(errorLog?.indexOf("<stdin>"))
+        : "Unkown error";
+    vscode.window.showErrorMessage(`${errorTag} ${relevantInfo}`);
+    output.appendLine(`${errorTag} ${relevantInfo}`);
+    output.show(true);
+};
 
 const run = (command: string) =>
     new Promise<string>((resolve, reject) => {
@@ -17,22 +27,39 @@ const run = (command: string) =>
         });
     });
 
+const checkIfKTlintExist = platformSelect({
+    windows: async (): Promise<Boolean> => {
+        const ktlintPath = vscode.workspace
+            .getConfiguration("kotlin-formatter")
+            .get<string | null>("ktlintPath") || ".\\ktlint";
+        return fs.existsSync(ktlintPath);
+    },
+    default: async (): Promise<Boolean> => {
+        try {
+            await run('command -v ktlint2');
+            return true;
+        } catch (e) {
+            return false;
+        }
+    },
+});
+
+const noKtlintError = (output: vscode.OutputChannel) => {
+    const message = platformSelect({
+        windows: `You don't have ktlint in your project root or your ktlintPath is setup incorreclty. Go to https://github.com/pinterest/ktlint/releases to download latest jar`,
+        default: `You don't have ktlint installed, go to https://github.com/pinterest/ktlint#installation and follow the instructions for your OS`,
+    });
+    showError(message, output);
+};
+
 const findEditorConfig = (document: vscode.TextDocument): string | null => {
     const documentPath = document.uri.fsPath;
     var testedFolder = path.dirname(documentPath);
     const files = getFiles(testedFolder);
     const editorConfig = files.find((e) => /\.editorconfig/.test(e));
-    if (editorConfig) return editorConfig;
-    // do {
-    //     const editorConfigFile = fs
-    //         .readdirSync(testedFolder)
-    //         .find((file) => file === ".editorconfig");
-    //     if (editorConfigFile) {
-    //         return `${testedFolder}/${editorConfigFile}`;
-    //     }
-    //     testedFolder = path.dirname(testedFolder);
-    //     console.log(testedFolder);
-    // } while (testedFolder !== process.cwd());
+    if (editorConfig) {
+        return editorConfig;
+    }
     return null;
 };
 
@@ -47,42 +74,47 @@ const getFiles = (dir: string): string[] => {
 
 const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
     const editorConfigPath = findEditorConfig(document);
-    const ktlintPath = vscode.workspace
-        .getConfiguration("kotlin-formatter")
-        .get<string | null>("ktlintPath");
+    const editorConfigParam = editorConfigPath ? `--editorconfig '${editorConfigPath}'` : "";
     editorConfigPath &&
         output.appendLine(`${infoTag} Found editorconfig file at: ${editorConfigPath}`);
-    const command =
-        process.platform === "win32"
-            ? `cd ${path.dirname(document.uri.fsPath)} & ( ${document
-                  .getText()
-                  .split(/\n|\r/)
-                  .filter(Boolean)
-                  .map((e) => `echo|set /p="${e}" & echo.`)
-                  .join(" & ")}) | java -jar ${ktlintPath || ".\\ktlint"} ${
-                  editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
-              } --stdin -F`
-            : `cat <<EOF |ktlint ${
-                  editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
-              } --stdin -F\n${document.getText()}\nEOF`;
+
+    const ktlintPath = vscode.workspace
+        .getConfiguration("kotlin-formatter")
+        .get<string | null>("ktlintPath") || ".\\ktlint";
+
+    const command = platformSelect({
+        windows: `cd ${path.dirname(document.uri.fsPath)} & ( ${document
+            .getText()
+            .split(/\n|\r/)
+            .filter(Boolean)
+            .map((e) => `echo|set /p="${e}" & echo.`)
+            .join(" & ")}) | java -jar ${ktlintPath} ${editorConfigParam} --stdin -F`,
+        default: `cat <<EOF |ktlint ${editorConfigParam} --stdin -F\n${document.getText()}\nEOF`,
+    });
+
     console.log(command);
     output.appendLine(`${infoTag} Formatting file: ${document.uri.fsPath}`);
-    return await run(command);
+    try {
+        return await run(command);
+    } catch (e) {
+        const hasKTLint = await checkIfKTlintExist();
+        if (!hasKTLint) {
+            noKtlintError(output);
+            throw Error("no ktlint");
+        } else {
+            throw e;
+        }
+    };
 };
 
-const showError = (e: string, output: vscode.OutputChannel) => {
-    const errorLog = e;
-    const relevantInfo = errorLog
-        ? errorLog.substring(errorLog?.indexOf("<stdin>"))
-        : "Unkown error";
-    vscode.window.showErrorMessage(`${errorTag} ${relevantInfo}`);
-    output.appendLine(`${errorTag} ${relevantInfo}`);
-    output.show(true);
-};
-
-export const activate = (context: vscode.ExtensionContext) => {
+export const activate = async (context: vscode.ExtensionContext) => {
     const output = vscode.window.createOutputChannel("Kotlin Formatter");
     output.appendLine(`${infoTag} Enabled Kotlin-Formatter`);
+    const hasKTLint = await checkIfKTlintExist();
+    if (!hasKTLint) {
+        noKtlintError(output);
+    }
+
     let command = vscode.commands.registerCommand("kotlin-formatter.formatKotlin", async () => {
         const { activeTextEditor } = vscode.window;
         if (
