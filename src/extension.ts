@@ -1,88 +1,16 @@
-import { exec } from "child_process";
-import * as path from "path";
-import * as fs from "fs";
 import * as vscode from "vscode";
+import { format } from './formatter';
+import { showInfo, noKtlintError, showError } from './utils/output';
+import { checkIfKTlintExist } from './utils/config';
 
-const infoTag = "[INFO]:";
-const errorTag = "[ERROR]:";
-
-const run = (command: string) =>
-    new Promise<string>((resolve, reject) => {
-        exec(command, (err, stdout) => {
-            if (err) {
-                reject(err.message);
-            } else {
-                resolve(stdout);
-            }
-        });
-    });
-
-const findEditorConfig = (document: vscode.TextDocument): string | null => {
-    const documentPath = document.uri.fsPath;
-    var testedFolder = path.dirname(documentPath);
-    const files = getFiles(testedFolder);
-    const editorConfig = files.find((e) => /\.editorconfig/.test(e));
-    if (editorConfig) return editorConfig;
-    // do {
-    //     const editorConfigFile = fs
-    //         .readdirSync(testedFolder)
-    //         .find((file) => file === ".editorconfig");
-    //     if (editorConfigFile) {
-    //         return `${testedFolder}/${editorConfigFile}`;
-    //     }
-    //     testedFolder = path.dirname(testedFolder);
-    //     console.log(testedFolder);
-    // } while (testedFolder !== process.cwd());
-    return null;
-};
-
-const getFiles = (dir: string): string[] => {
-    const dirents = fs.readdirSync(dir, { withFileTypes: true });
-    const files = dirents.map((dirent) => {
-        const res = path.resolve(dir, dirent.name);
-        return dirent.isDirectory() ? getFiles(res) : res;
-    });
-    return Array.prototype.concat(...files);
-};
-
-const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
-    const editorConfigPath = findEditorConfig(document);
-    const ktlintPath = vscode.workspace
-        .getConfiguration("kotlin-formatter")
-        .get<string | null>("ktlintPath");
-    editorConfigPath &&
-        output.appendLine(`${infoTag} Found editorconfig file at: ${editorConfigPath}`);
-    const command =
-        process.platform === "win32"
-            ? `cd ${path.dirname(document.uri.fsPath)} & ( ${document
-                  .getText()
-                  .split(/\n|\r/)
-                  .filter(Boolean)
-                  .map((e) => `echo|set /p="${e}" & echo.`)
-                  .join(" & ")}) | java -jar ${ktlintPath || ".\\ktlint"} ${
-                  editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
-              } --stdin -F`
-            : `cat <<EOF |ktlint ${
-                  editorConfigPath ? `--editorconfig '${editorConfigPath}'` : ""
-              } --stdin -F\n${document.getText()}\nEOF`;
-    console.log(command);
-    output.appendLine(`${infoTag} Formatting file: ${document.uri.fsPath}`);
-    return await run(command);
-};
-
-const showError = (e: string, output: vscode.OutputChannel) => {
-    const errorLog = e;
-    const relevantInfo = errorLog
-        ? errorLog.substring(errorLog?.indexOf("<stdin>"))
-        : "Unkown error";
-    vscode.window.showErrorMessage(`${errorTag} ${relevantInfo}`);
-    output.appendLine(`${errorTag} ${relevantInfo}`);
-    output.show(true);
-};
-
-export const activate = (context: vscode.ExtensionContext) => {
+export const activate = async (context: vscode.ExtensionContext) => {
     const output = vscode.window.createOutputChannel("Kotlin Formatter");
-    output.appendLine(`${infoTag} Enabled Kotlin-Formatter`);
+    showInfo(`Enabled Kotlin-Formatter`, output);
+    const hasKTLint = await checkIfKTlintExist();
+    if (!hasKTLint) {
+        noKtlintError(output);
+    }
+
     let command = vscode.commands.registerCommand("kotlin-formatter.formatKotlin", async () => {
         const { activeTextEditor } = vscode.window;
         if (
@@ -131,7 +59,7 @@ export const activate = (context: vscode.ExtensionContext) => {
                     );
                     return [edit];
                 } catch (e) {
-                    showError((e as string).toString(), output);
+                    showError((e as string), output);
                     return [];
                 }
             },
