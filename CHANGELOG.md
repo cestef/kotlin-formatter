@@ -4,7 +4,7 @@ All notable changes to the "kotlin-formatter" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [0.0.6]
 ### Added
 - Detect missing ktlint and suggest action to fix it - [@RozPierog #5](https://github.com/cstefFlexin/kotlin-formatter/pull/6)
 
