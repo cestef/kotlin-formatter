@@ -25,21 +25,35 @@ const getFiles = (dir: string): string[] => {
   const dirents = fs.readdirSync(dir, { withFileTypes: true });
   const files = dirents.map((dirent) => {
     const res = path.resolve(dir, dirent.name);
-    return dirent.isDirectory() ? getFiles(res) : res;
+    return dirent.isDirectory() ? '' : res;
   });
-  return Array.prototype.concat(...files);
+  return Array.prototype.concat(...files).filter(v => v !== '');
 };
 
 const findEditorConfig = (document: vscode.TextDocument): string | null => {
   const documentPath = document.uri.fsPath;
   let testedFolder = documentPath;
-  let editorConfig;
+  let editorConfig: string | undefined;
   while (!editorConfig) {
     const newFolder = path.dirname(testedFolder);
-    if (newFolder === testedFolder) { break; }
+    if (newFolder === testedFolder) {
+      break;
+    }
     testedFolder = newFolder;
-    const files = getFiles(testedFolder);
-    editorConfig = files.find((e) => /\.editorconfig/.test(e));
+    try {
+      const files = getFiles(testedFolder);
+      const potentialEditorConfig = files.find((e) => /\.editorconfig/.test(e));
+      if (potentialEditorConfig) {
+        fs.accessSync(potentialEditorConfig, fs.constants.R_OK);
+        editorConfig = potentialEditorConfig;
+      }
+    } catch (err: any) {
+      if (err.code === 'EPERM' || err.code === 'EACCES') {
+        continue;
+      } else {
+        throw err;
+      }
+    }
   }
   if (editorConfig) {
     return editorConfig;
