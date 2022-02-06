@@ -32,9 +32,15 @@ const getFiles = (dir: string): string[] => {
 
 const findEditorConfig = (document: vscode.TextDocument): string | null => {
   const documentPath = document.uri.fsPath;
-  var testedFolder = path.dirname(documentPath);
-  const files = getFiles(testedFolder);
-  const editorConfig = files.find((e) => /\.editorconfig/.test(e));
+  let testedFolder = documentPath;
+  let editorConfig;
+  while (!editorConfig) {
+    const newFolder = path.dirname(testedFolder);
+    if (newFolder === testedFolder) { break; }
+    testedFolder = newFolder;
+    const files = getFiles(testedFolder);
+    editorConfig = files.find((e) => /\.editorconfig/.test(e));
+  }
   if (editorConfig) {
     return editorConfig;
   }
