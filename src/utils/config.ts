@@ -21,24 +21,52 @@ const checkIfKTlintExist = platformSelect({
   },
 });
 
-const getFiles = (dir: string): string[] => {
+const getFiles = (dir: string, recursive = false): string[] => {
   const dirents = fs.readdirSync(dir, { withFileTypes: true });
-  const files = dirents.map((dirent) => {
-    const res = path.resolve(dir, dirent.name);
-    return dirent.isDirectory() ? getFiles(res) : res;
-  });
+  const files = dirents
+    .filter(dirent => dirent.isFile() || (recursive && dirent.isDirectory()))
+    .map(dirent => {
+      const res = path.resolve(dir, dirent.name);
+      return (recursive && dirent.isDirectory()) ? getFiles(res, recursive) : res;
+    });
   return Array.prototype.concat(...files);
+};
+
+const findInFolder = (dir: string, filename: string, recursive = false) => {
+  try {
+    const files = getFiles(dir, recursive);
+    const file = files.find((e) => e.endsWith(`/${filename}`));
+    if (file) {
+      fs.accessSync(file, fs.constants.R_OK);
+      return file;
+    }
+  } catch (err: any) {
+    if (err.code !== 'EPERM' && err.code !== 'EACCES') {
+      throw err;
+    }
+  }
+
+  return null;
 };
 
 const findEditorConfig = (document: vscode.TextDocument): string | null => {
   const documentPath = document.uri.fsPath;
-  var testedFolder = path.dirname(documentPath);
-  const files = getFiles(testedFolder);
-  const editorConfig = files.find((e) => /\.editorconfig/.test(e));
+  let testedFolder = path.dirname(documentPath);
+  let editorConfig = findInFolder(testedFolder, '.editorconfig', true);
+  while (!editorConfig) {
+    const newFolder = path.dirname(testedFolder);
+    // detect fs root directory to avoid an eternal loop, since `dirname('/') = '/'`
+    if (newFolder === testedFolder) {
+      break;
+    }
+    testedFolder = newFolder;
+    editorConfig = findInFolder(testedFolder, '.editorconfig');
+  }
   if (editorConfig) {
     return editorConfig;
+  } else {
+    return null;
   }
-  return null;
 };
 
 export { checkIfKTlintExist, findEditorConfig };
