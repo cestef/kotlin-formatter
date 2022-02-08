@@ -2,7 +2,7 @@
     "name": "kotlin-formatter",
     "displayName": "Kotlin Formatter",
     "description": "Format your Kotlin code easily",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "engines": {
         "vscode": "^1.60.0"
     },
