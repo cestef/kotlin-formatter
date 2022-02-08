@@ -4,6 +4,7 @@ import platformSelect from './utils/platformSelect';
 import { run } from './utils/process';
 import { findEditorConfig, checkIfKTlintExist } from './utils/config';
 import { showInfo, noKtlintError } from './utils/output';
+import { createHash } from 'crypto';
 
 const format = async (document: vscode.TextDocument, output: vscode.OutputChannel) => {
   const editorConfigPath = findEditorConfig(document);
@@ -14,14 +15,16 @@ const format = async (document: vscode.TextDocument, output: vscode.OutputChanne
     .getConfiguration("kotlin-formatter")
     .get<string | null>("ktlintPath") || ".\\ktlint";
 
+  const text = document.getText();
+  // use hash of doc as delimiter for heredoc so that the document itself containing the delimiter is... unlikely
+  const hash = createHash('sha1').update(text).digest('hex');
   const command = platformSelect({
-    windows: `cd ${path.dirname(document.uri.fsPath)} & ( ${document
-      .getText()
+    windows: `cd ${path.dirname(document.uri.fsPath)} & ( ${text
       .split(/\n|\r/)
       .filter(Boolean)
       .map((e) => `echo|set /p="${e}" & echo.`)
       .join(" & ")}) | java -jar ${ktlintPath} ${editorConfigParam} --stdin -F`,
-    default: `cat <<EOF |ktlint ${editorConfigParam} --stdin -F\n${document.getText()}\nEOF`,
+    default: `cat <<\'${hash}\' |ktlint ${editorConfigParam} --stdin -F\n${text}\n${hash}`,
   });
 
   console.log(command);
